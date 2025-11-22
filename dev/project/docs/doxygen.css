@@ -1,0 +1,37 @@
+:root {
+  --doxygen-accent: #0f766e;
+  --doxygen-muted: #6b7280;
+  --doxygen-border: #e5e7eb;
+  --doxygen-bg: #f9fafb;
+  --doxygen-code: #0b1021;
+}
+
+.doxygen-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.doxygen-table th,
+.doxygen-table td {
+  border: 1px solid var(--doxygen-border);
+  padding: 0.5rem 0.75rem;
+}
+
+.doxygen-programlisting {
+  background: var(--doxygen-bg);
+  border: 1px solid var(--doxygen-border);
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.doxygen-para {
+  margin: 0.5rem 0;
+}
+
+.doxygen-unknown {
+  border-left: 3px solid var(--doxygen-accent);
+  padding-left: 0.75rem;
+  color: var(--doxygen-muted);
+}
