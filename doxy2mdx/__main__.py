@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from .converter import DoxygenToMDXConverter
+from .converter_simple import DoxygenToMDXConverter
 
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
@@ -352,3 +352,4 @@ def main():
 
 
 if __name__ == '__main__':
+    main()

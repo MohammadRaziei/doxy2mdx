@@ -9,7 +9,3 @@ QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = YES
 EXTRACT_ALL            = YES
 INPUT                  = ../include
-FILE_PATTERNS          = *.h *.hpp
-RECURSIVE              = YES
-JAVADOC_AUTOBRIEF      = YES
-STRIP_FROM_PATH        = ..

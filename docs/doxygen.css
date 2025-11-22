@@ -1,0 +1,159 @@
+/* Doxygen to MDX CSS Styles */
+.doxygen-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+}
+
+.doxygen-table th,
+.doxygen-table td {
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.doxygen-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.doxygen-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.doxygen-table tr:hover {
+    background-color: #f0f0f0;
+}
+
+.doxygen-para {
+    margin: 1rem 0;
+    line-height: 1.6;
+}
+
+.doxygen-bold {
+    font-weight: bold;
+}
+
+.doxygen-emphasis {
+    font-style: italic;
+}
+
+.doxygen-computeroutput {
+    font-family: 'Courier New', monospace;
+    background-color: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.doxygen-ulink {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.doxygen-ulink:hover {
+    text-decoration: underline;
+}
+
+.doxygen-ref {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.doxygen-ref:hover {
+    text-decoration: underline;
+}
+
+.doxygen-programlisting {
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+}
+
+.doxygen-codeline {
+    font-family: 'Courier New', monospace;
+    white-space: pre;
+}
+
+.doxygen-highlight {
+    font-family: 'Courier New', monospace;
+}
+
+.doxygen-sectiondef {
+    margin: 2rem 0;
+}
+
+.doxygen-memberdef {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-left: 4px solid #007bff;
+    background-color: #f8f9fa;
+}
+
+.doxygen-param {
+    margin: 0.5rem 0;
+}
+
+.doxygen-declname {
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+.doxygen-defval {
+    color: #6c757d;
+    font-style: italic;
+}
+
+.doxygen-type {
+    font-family: 'Courier New', monospace;
+    color: #007bff;
+}
+
+.doxygen-name {
+    font-weight: bold;
+}
+
+.doxygen-argsstring {
+    font-family: 'Courier New', monospace;
+    color: #6c757d;
+}
+
+.doxygen-briefdescription {
+    color: #6c757d;
+    font-style: italic;
+    margin-bottom: 0.5rem;
+}
+
+.doxygen-detaileddescription {
+    margin-top: 1rem;
+}
+
+.doxygen-includes {
+    font-family: 'Courier New', monospace;
+    background-color: #f5f5f5;
+    padding: 0.5rem;
+    border-radius: 3px;
+    margin: 0.5rem 0;
+}
+
+.doxygen-innergroup {
+    margin: 0.5rem 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .doxygen-table {
+        font-size: 0.9rem;
+    }
+    
+    .doxygen-table th,
+    .doxygen-table td {
+        padding: 6px 8px;
+    }
+    
+    .doxygen-memberdef {
+        padding: 0.75rem;
+    }
+}

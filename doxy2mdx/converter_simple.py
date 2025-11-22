@@ -1,5 +1,5 @@
 import os
-import pygixml
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import re
@@ -31,19 +31,16 @@ class DoxygenToMDXConverter:
     def convert_file(self, xml_file: str) -> Optional[str]:
         """Convert a single XML file to MDX content"""
         try:
-            doc = pygixml.parse_file(xml_file)
-            root = doc.first_child()
+            tree = ET.parse(xml_file)
+            root = tree.getroot()
             
-            if not root:
+            # Get compound definition
+            compound = root.find('compounddef')
+            if compound is None:
                 return None
                 
-            # Get compound name and kind
-            compound = root.child('compounddef')
-            if not compound:
-                return None
-                
-            compound_name = compound.attribute('id') or ''
-            compound_kind = compound.attribute('kind') or ''
+            compound_id = compound.get('id', '')
+            compound_kind = compound.get('kind', '')
             
             # Start building MDX content
             mdx_lines = []
@@ -66,46 +63,45 @@ class DoxygenToMDXConverter:
             print(f"Error parsing XML file {xml_file}: {e}")
             return None
     
-    def _get_title(self, compound: pygixml.XMLNode) -> str:
+    def _get_title(self, compound: ET.Element) -> str:
         """Extract title from compound element"""
-        title_elem = compound.child('title')
-        if title_elem and title_elem.child_value():
-            return title_elem.child_value().strip()
+        title_elem = compound.find('title')
+        if title_elem is not None and title_elem.text:
+            return title_elem.text.strip()
         
         # Fallback to compound name
-        compound_name = compound.attribute('id') or ''
-        if compound_name:
-            print(str(compound_name))
-            return str(compound_name).replace('_', ' ').title()
+        compound_id = compound.get('id', '')
+        if compound_id:
+            return str(compound_id).replace('_', ' ').title()
         return 'Untitled'
     
-    def _get_sidebar_label(self, compound: pygixml.XMLNode) -> str:
+    def _get_sidebar_label(self, compound: ET.Element) -> str:
         """Generate sidebar label from compound"""
         title = self._get_title(compound)
         # Remove common prefixes and make it shorter
         label = re.sub(r'^(class|struct|namespace|file)\s+', '', title)
         return label
     
-    def _render_compound(self, compound: pygixml.XMLNode) -> List[str]:
+    def _render_compound(self, compound: ET.Element) -> List[str]:
         """Render a compound definition to MDX lines"""
         lines = []
         
         # Add compound description
-        brief_desc = compound.child('briefdescription')
-        if brief_desc:
+        brief_desc = compound.find('briefdescription')
+        if brief_desc is not None:
             brief_text = self._render_description(brief_desc)
             if brief_text:
                 lines.extend([brief_text, ''])
         
         # Add detailed description
-        detailed_desc = compound.child('detaileddescription')
-        if detailed_desc:
+        detailed_desc = compound.find('detaileddescription')
+        if detailed_desc is not None:
             detailed_text = self._render_description(detailed_desc)
             if detailed_text:
                 lines.extend([detailed_text, ''])
         
         # Add sections based on compound kind
-        compound_kind = compound.attribute('kind') or ''
+        compound_kind = compound.get('kind', '')
         
         if compound_kind in ['class', 'struct']:
             lines.extend(self._render_class_members(compound))
@@ -116,80 +112,73 @@ class DoxygenToMDXConverter:
         
         return lines
     
-    def _render_description(self, description: pygixml.XMLNode) -> str:
+    def _render_description(self, description: ET.Element) -> str:
         """Render a description element to markdown"""
         paragraphs = []
         
-        # Find all para elements using XPath
-        paras = description.select_nodes('.//para')
-        for para_node in paras:
-            para = para_node.node()  # Get the XMLNode from XPathNode
-            if para:
-                para_text = self._render_paragraph(para)
-                if para_text:
-                    paragraphs.append(para_text)
+        # Find all para elements
+        for para in description.findall('.//para'):
+            para_text = self._render_paragraph(para)
+            if para_text:
+                paragraphs.append(para_text)
         
         return '\n\n'.join(paragraphs)
     
-    def _render_paragraph(self, para: pygixml.XMLNode) -> str:
+    def _render_paragraph(self, para: ET.Element) -> str:
         """Render a paragraph element to markdown"""
         text_parts = []
         
-        # Get text content using text() method
-        text_content = para.text()
-        if text_content:
-            text_parts.append(text_content.strip())
+        # Get text content
+        if para.text:
+            text_parts.append(para.text.strip())
         
         # Handle child elements
         for child in para:
-            if child.name == 'computeroutput':
+            if child.tag == 'computeroutput':
                 text_parts.append(f'`{self._get_element_text(child)}`')
-            elif child.name == 'bold':
+            elif child.tag == 'bold':
                 text_parts.append(f'**{self._get_element_text(child)}**')
-            elif child.name == 'emphasis':
+            elif child.tag == 'emphasis':
                 text_parts.append(f'*{self._get_element_text(child)}*')
-            elif child.name == 'ulink':
-                url = child.attribute('url') or ''
+            elif child.tag == 'ulink':
+                url = child.get('url', '')
                 text_parts.append(f'[{self._get_element_text(child)}]({url})')
-            elif child.name == 'ref':
-                refid = child.attribute('refid') or ''
+            elif child.tag == 'ref':
+                refid = child.get('refid', '')
                 text_parts.append(f'[{self._get_element_text(child)}](./{refid})')
-            elif child.name == 'programlisting':
+            elif child.tag == 'programlisting':
                 code = self._render_code_block(child)
                 text_parts.append(f'\n{code}\n')
             else:
                 # Fallback to div for unknown elements
                 text_parts.append(self._wrap_unknown_element(child))
+            
+            # Add tail text
+            if child.tail:
+                text_parts.append(child.tail.strip())
         
         result = ' '.join(text_parts).strip()
         return result if result else ''
     
-    def _render_code_block(self, programlisting: pygixml.XMLNode) -> str:
+    def _render_code_block(self, programlisting: ET.Element) -> str:
         """Render a code block to markdown"""
         code_lines = []
         
-        # Find all codeline elements using XPath
-        codelines = programlisting.select_nodes('.//codeline')
-        for codeline_node in codelines:
-            codeline = codeline_node.node()
-            if codeline:
-                line_parts = []
-                # Find all highlight elements in this codeline
-                highlights = codeline.select_nodes('.//highlight')
-                for highlight_node in highlights:
-                    highlight = highlight_node.node()
-                    if highlight:
-                        text_content = highlight.text()
-                        if text_content:
-                            line_parts.append(text_content)
-                if line_parts:
-                    code_lines.append(''.join(line_parts))
+        # Find all codeline elements
+        for codeline in programlisting.findall('.//codeline'):
+            line_parts = []
+            # Find all highlight elements in this codeline
+            for highlight in codeline.findall('.//highlight'):
+                if highlight.text:
+                    line_parts.append(highlight.text)
+            if line_parts:
+                code_lines.append(''.join(line_parts))
         
         if code_lines:
             return f'```cpp\n' + '\n'.join(code_lines) + '\n```'
         return ''
     
-    def _render_class_members(self, compound: pygixml.XMLNode) -> List[str]:
+    def _render_class_members(self, compound: ET.Element) -> List[str]:
         """Render class/struct members to MDX"""
         lines = []
         
@@ -203,11 +192,9 @@ class DoxygenToMDXConverter:
         ]
         
         for section_id, section_title in sections:
-            # Find sectiondef elements with the specific kind
-            sectiondefs = compound.select_nodes(f"sectiondef[@kind='{section_id}']")
             members = []
-            for sectiondef in sectiondefs:
-                members.extend(sectiondef.select_nodes('memberdef'))
+            for sectiondef in compound.findall(f"sectiondef[@kind='{section_id}']"):
+                members.extend(sectiondef.findall('memberdef'))
             
             if members:
                 lines.extend([
@@ -221,12 +208,12 @@ class DoxygenToMDXConverter:
         
         return lines
     
-    def _render_namespace_members(self, compound: pygixml.XMLNode) -> List[str]:
+    def _render_namespace_members(self, compound: ET.Element) -> List[str]:
         """Render namespace members to MDX"""
         lines = []
         
         # Find all member definitions in the namespace
-        members = compound.select_nodes('.//memberdef')
+        members = compound.findall('.//memberdef')
         if members:
             lines.extend([
                 '## Members',
@@ -239,54 +226,53 @@ class DoxygenToMDXConverter:
         
         return lines
     
-    def _render_file_contents(self, compound: pygixml.XMLNode) -> List[str]:
+    def _render_file_contents(self, compound: ET.Element) -> List[str]:
         """Render file contents to MDX"""
         lines = []
         
         # Add includes
-        includes = compound.select_nodes('.//includes')
+        includes = compound.findall('.//includes')
         if includes:
             lines.extend([
                 '## Includes',
                 ''
             ])
             for inc in includes:
-                text_content = inc.text()
-                if text_content:
-                    lines.append(f'- `{text_content}`')
+                if inc.text:
+                    lines.append(f'- `{inc.text}`')
             lines.append('')
         
         # Add defined classes/structs
-        innergroups = compound.select_nodes('.//innergroup')
+        innergroups = compound.findall('.//innergroup')
         if innergroups:
             lines.extend([
                 '## Defined Classes',
                 ''
             ])
             for group in innergroups:
-                refid = group.attribute('refid') or ''
+                refid = group.get('refid', '')
                 name = self._get_element_text(group)
                 lines.append(f'- [{name}](./{refid})')
             lines.append('')
         
         return lines
     
-    def _render_member(self, member: pygixml.XMLNode) -> List[str]:
+    def _render_member(self, member: ET.Element) -> List[str]:
         """Render a single member (function, variable, etc.) to MDX"""
         lines = []
         
-        member_kind = member.attribute('kind') or ''
-        member_name = member.child('name')
-        if not member_name or not member_name.child_value():
+        member_kind = member.get('kind', '')
+        member_name = member.find('name')
+        if member_name is None or not member_name.text:
             return lines
         
-        name = member_name.child_value()
+        name = member_name.text
         
         # Create header based on member kind
         if member_kind == 'function':
             # Get function signature
-            argsstring = member.child('argsstring')
-            signature = f'{name}{argsstring.child_value() if argsstring else "()"}'
+            argsstring = member.find('argsstring')
+            signature = f'{name}{argsstring.text if argsstring is not None and argsstring.text else "()"}'
             lines.append(f'### `{signature}`')
         else:
             # Variable or other member
@@ -295,16 +281,16 @@ class DoxygenToMDXConverter:
         lines.append('')
         
         # Add brief description
-        brief_desc = member.child('briefdescription')
-        if brief_desc:
+        brief_desc = member.find('briefdescription')
+        if brief_desc is not None:
             brief_text = self._render_description(brief_desc)
             if brief_text:
                 lines.append(brief_text)
                 lines.append('')
         
         # Add detailed description
-        detailed_desc = member.child('detaileddescription')
-        if detailed_desc:
+        detailed_desc = member.find('detaileddescription')
+        if detailed_desc is not None:
             detailed_text = self._render_description(detailed_desc)
             if detailed_text:
                 lines.append(detailed_text)
@@ -312,42 +298,46 @@ class DoxygenToMDXConverter:
         
         # Add parameters for functions
         if member_kind == 'function':
-            params = member.select_nodes('.//param')
+            params = member.findall('.//param')
             if params:
                 lines.extend([
                     '#### Parameters',
                     ''
                 ])
                 for param in params:
-                    param_name = param.child('declname')
-                    param_desc = param.child('defval')
-                    if param_name and param_name.child_value():
-                        param_line = f'- `{param_name.child_value()}`'
-                        if param_desc and param_desc.child_value():
-                            param_line += f': {param_desc.child_value()}'
+                    param_name = param.find('declname')
+                    param_desc = param.find('defval')
+                    if param_name is not None and param_name.text:
+                        param_line = f'- `{param_name.text}`'
+                        if param_desc is not None and param_desc.text:
+                            param_line += f': {param_desc.text}'
                         lines.append(param_line)
                 lines.append('')
         
         # Add return value for functions
         if member_kind == 'function':
-            returns = member.child('type')
-            if returns and returns.child_value():
+            returns = member.find('type')
+            if returns is not None and returns.text:
                 lines.extend([
                     '#### Returns',
                     '',
-                    f'`{returns.child_value().strip()}`',
+                    f'`{returns.text.strip()}`',
                     ''
                 ])
         
         return lines
     
-    def _get_element_text(self, element: pygixml.XMLNode) -> str:
+    def _get_element_text(self, element: ET.Element) -> str:
         """Extract text content from an element and its children"""
-        return element.text() or ''
+        text = element.text or ''
+        for child in element:
+            text += self._get_element_text(child)
+            if child.tail:
+                text += child.tail
+        return text.strip()
     
-    def _wrap_unknown_element(self, element: pygixml.XMLNode) -> str:
+    def _wrap_unknown_element(self, element: ET.Element) -> str:
         """Wrap unknown XML elements in div with doxygen- class"""
         element_text = self._get_element_text(element)
         if element_text:
-            return f'<div class="doxygen-{element.name}">{element_text}</div>'
-        return ''
+            return f'<div class="doxygen-{element.tag}">{element_text}</div>'
