@@ -81,7 +81,7 @@ class DoxygenToMDXWithReactConverter:
                 mdx_lines.extend(self._render_file_contents_mdx(compound))
             
             mdx_lines.extend([
-                '    </Doxygen.DoxygenComponent>',
+                '    </div>',
                 '  );',
                 '}',
                 ''
