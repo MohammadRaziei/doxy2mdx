@@ -1,0 +1,7 @@
+# Doxy2MDX Configuration File
+input_xml_dir: build/xml
+output_mdx_dir: build/mdx
+css_output_path: doxygen.css
+project_name: "Sample C++ Project"
+heading_offset: 1
+emit_index: true

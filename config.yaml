@@ -1,7 +1,0 @@
-# Doxy2MDX Configuration File
-input_xml_dir: dev/project/build/xml
-output_mdx_dir: dev/project/docs/mdx
-css_output_path: dev/project/docs/doxygen.css
-project_name: "Sample C++ Project"
-heading_offset: 1
-emit_index: true
