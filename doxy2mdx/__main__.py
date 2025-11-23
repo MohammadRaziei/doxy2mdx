@@ -11,17 +11,21 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from .converter_simple import DoxygenToMDXConverter
+from .converter_mdx_with_react import DoxygenToMDXWithReactConverter
+from .converter_react import DoxygenToReactConverter
 
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """Load configuration from YAML file or use defaults"""
     default_config = {
-        'input_xml_dir': 'docs/build/xml',
-        'output_mdx_dir': 'docs/mdx',
-        'css_output_path': 'docs/doxygen.css',
+        'input_xml_dir': './xml',
+        'output_mdx_dir': './mdx',
+        'css_output_path': './doxygen.css',
         'project_name': 'Project',
         'heading_offset': 0,
-        'emit_index': True
+        'emit_index': True,
+        'mode': 'simple',  # simple, react, raw
+        'components_path': './components/doxygen.jsx'
     }
     
     if config_path and os.path.exists(config_path):
@@ -42,10 +46,16 @@ def parse_args() -> Dict[str, Any]:
         description='Convert Doxygen XML to MDX files for Docusaurus',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Conversion Modes:
+  simple    - Basic MDX output (default)
+  react     - MDX with embedded React components
+  raw       - Pure React components (.jsx files)
+
 Examples:
   python -m doxy2mdx --input docs/xml --output docs/mdx
   python -m doxy2mdx --config config.yaml
-  python -m doxy2mdx -i docs/xml -o docs/mdx --project "My Project"
+  python -m doxy2mdx -i docs/xml -o docs/mdx --mode react
+  python -m doxy2mdx -i docs/xml -o docs/components --mode raw
         """
     )
     
@@ -97,6 +107,19 @@ Examples:
         help='Generate CSS file for styling'
     )
     
+    parser.add_argument(
+        '--mode',
+        choices=['simple', 'react', 'raw'],
+        default='simple',
+        help='Conversion mode: simple (basic MDX), react (MDX with React), raw (pure React)'
+    )
+    
+    parser.add_argument(
+        '--components-path',
+        type=str,
+        help='Path to React components file (for react mode)'
+    )
+    
     args = parser.parse_args()
     
     # Load base configuration
@@ -122,6 +145,10 @@ Examples:
         config['emit_index'] = False
     
     config['generate_css'] = args.generate_css
+    config['mode'] = args.mode
+    
+    if args.components_path:
+        config['components_path'] = args.components_path
     
     return config
 
@@ -149,163 +176,152 @@ def validate_config(config: Dict[str, Any]) -> bool:
 def generate_css_file(output_path: str):
     """Generate CSS file for styling doxygen elements"""
     css_content = """/* Doxygen to MDX CSS Styles */
+:root {
+  --doxygen-accent: #0f766e;
+  --doxygen-muted: #6b7280;
+  --doxygen-border: #e5e7eb;
+  --doxygen-bg: #f9fafb;
+  --doxygen-code: #0b1021;
+}
+
 .doxygen-table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 1rem 0;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
 }
 
 .doxygen-table th,
 .doxygen-table td {
-    border: 1px solid #ddd;
-    padding: 8px 12px;
-    text-align: left;
-}
-
-.doxygen-table th {
-    background-color: #f5f5f5;
-    font-weight: bold;
-}
-
-.doxygen-table tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-
-.doxygen-table tr:hover {
-    background-color: #f0f0f0;
-}
-
-.doxygen-para {
-    margin: 1rem 0;
-    line-height: 1.6;
-}
-
-.doxygen-bold {
-    font-weight: bold;
-}
-
-.doxygen-emphasis {
-    font-style: italic;
-}
-
-.doxygen-computeroutput {
-    font-family: 'Courier New', monospace;
-    background-color: #f5f5f5;
-    padding: 2px 4px;
-    border-radius: 3px;
-}
-
-.doxygen-ulink {
-    color: #007bff;
-    text-decoration: none;
-}
-
-.doxygen-ulink:hover {
-    text-decoration: underline;
-}
-
-.doxygen-ref {
-    color: #007bff;
-    text-decoration: none;
-}
-
-.doxygen-ref:hover {
-    text-decoration: underline;
+  border: 1px solid var(--doxygen-border);
+  padding: 0.5rem 0.75rem;
 }
 
 .doxygen-programlisting {
-    background-color: #f8f8f8;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 1rem;
-    margin: 1rem 0;
-    overflow-x: auto;
+  background: var(--doxygen-bg);
+  border: 1px solid var(--doxygen-border);
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
 }
 
-.doxygen-codeline {
-    font-family: 'Courier New', monospace;
-    white-space: pre;
+.doxygen-para {
+  margin: 0.5rem 0;
 }
 
-.doxygen-highlight {
-    font-family: 'Courier New', monospace;
+.doxygen-unknown {
+  border-left: 3px solid var(--doxygen-accent);
+  padding-left: 0.75rem;
+  color: var(--doxygen-muted);
 }
 
-.doxygen-sectiondef {
-    margin: 2rem 0;
+.doxygen-member-definition {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border-left: 4px solid var(--doxygen-accent);
+  background-color: var(--doxygen-bg);
 }
 
-.doxygen-memberdef {
-    margin: 1.5rem 0;
-    padding: 1rem;
-    border-left: 4px solid #007bff;
-    background-color: #f8f9fa;
+.doxygen-memtitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.doxygen-param {
-    margin: 0.5rem 0;
+.doxygen-permalink a {
+  color: var(--doxygen-accent);
+  text-decoration: none;
+  font-weight: bold;
 }
 
-.doxygen-declname {
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
+.doxygen-memitem {
+  margin: 1rem 0;
 }
 
-.doxygen-defval {
-    color: #6c757d;
-    font-style: italic;
+.doxygen-memproto {
+  background: white;
+  border: 1px solid var(--doxygen-border);
+  border-radius: 4px;
+  padding: 0.75rem;
 }
 
-.doxygen-type {
-    font-family: 'Courier New', monospace;
-    color: #007bff;
+.doxygen-memname {
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
 }
 
-.doxygen-name {
-    font-weight: bold;
-}
-
-.doxygen-argsstring {
-    font-family: 'Courier New', monospace;
-    color: #6c757d;
+.doxygen-memdoc {
+  margin-top: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--doxygen-border);
 }
 
 .doxygen-briefdescription {
-    color: #6c757d;
-    font-style: italic;
-    margin-bottom: 0.5rem;
+  color: var(--doxygen-muted);
+  font-style: italic;
+  margin-bottom: 0.5rem;
 }
 
 .doxygen-detaileddescription {
-    margin-top: 1rem;
+  margin: 1rem 0;
+  line-height: 1.6;
 }
 
-.doxygen-includes {
-    font-family: 'Courier New', monospace;
-    background-color: #f5f5f5;
-    padding: 0.5rem;
-    border-radius: 3px;
-    margin: 0.5rem 0;
+.doxygen-params {
+  margin: 1rem 0;
 }
 
-.doxygen-innergroup {
-    margin: 0.5rem 0;
+.doxygen-params table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doxygen-paramname {
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  padding-right: 1rem;
+}
+
+.doxygen-section-return {
+  margin: 1rem 0;
+  padding: 0.75rem;
+  background: var(--doxygen-bg);
+  border-radius: 4px;
+}
+
+.doxygen-section-title {
+  color: var(--doxygen-accent);
+  border-bottom: 2px solid var(--doxygen-border);
+  padding-bottom: 0.5rem;
+  margin: 2rem 0 1rem 0;
+}
+
+.doxygen-section {
+  margin: 2rem 0;
+}
+
+.doxygen-component {
+  max-width: 100%;
 }
 
 /* Responsive design */
 @media (max-width: 768px) {
-    .doxygen-table {
-        font-size: 0.9rem;
-    }
-    
-    .doxygen-table th,
-    .doxygen-table td {
-        padding: 6px 8px;
-    }
-    
-    .doxygen-memberdef {
-        padding: 0.75rem;
-    }
+  .doxygen-table {
+    font-size: 0.9rem;
+  }
+  
+  .doxygen-table th,
+  .doxygen-table td {
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .doxygen-member-definition {
+    padding: 0.75rem;
+  }
+  
+  .doxygen-memproto {
+    padding: 0.5rem;
+  }
 }
 """
     
@@ -332,19 +348,36 @@ def main():
         if config.get('generate_css'):
             generate_css_file(config['css_output_path'])
         
-        # Create converter and run conversion
-        converter = DoxygenToMDXConverter(config)
+        # Select converter based on mode
+        mode = config.get('mode', 'simple')
+        print(f"Using conversion mode: {mode}")
+        
+        if mode == 'react':
+            converter = DoxygenToMDXWithReactConverter(config)
+            output_ext = '.mdx'
+        elif mode == 'raw':
+            converter = DoxygenToReactConverter(config)
+            output_ext = '.jsx'
+        else:  # simple mode
+            converter = DoxygenToMDXConverter(config)
+            output_ext = '.mdx'
+        
+        # Run conversion
         converter.convert_directory(
             config['input_xml_dir'],
             config['output_mdx_dir']
         )
         
-        print(f"\nConversion completed successfully!")
+        print(f"\n✅ Conversion completed successfully!")
+        print(f"Mode: {mode}")
         print(f"Input: {config['input_xml_dir']}")
-        print(f"Output: {config['output_mdx_dir']}")
+        print(f"Output: {config['output_mdx_dir']} ({output_ext} files)")
         
         if config.get('generate_css'):
             print(f"CSS: {config['css_output_path']}")
+        
+        if mode == 'react':
+            print(f"Components: {config.get('components_path', './components/doxygen.jsx')}")
         
     except Exception as e:
         print(f"Error: {e}")
